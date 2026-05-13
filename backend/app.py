@@ -9,8 +9,12 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
-from .service import InventoryService
-from .observer import EventType
+try:
+    from .service import InventoryService
+    from .observer import EventType
+except ImportError:
+    from backend.service import InventoryService
+    from backend.observer import EventType
 
 app = FastAPI(title="Inventory Backend API", version="0.1.0")
 
