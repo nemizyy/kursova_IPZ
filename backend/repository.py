@@ -166,3 +166,8 @@ class HistoryRepository:
                 (operation,),
             ).fetchall()
         return [HistoryRecord.from_dict(dict(r)) for r in rows]
+
+    def delete_all_for_item(self, inventory_number: str) -> None:
+        """Видаляє всю історію для конкретного майна."""
+        with self._conn() as conn:
+            conn.execute("DELETE FROM history WHERE item_inventory_number=?", (inventory_number,))

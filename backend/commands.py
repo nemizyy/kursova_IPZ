@@ -183,13 +183,12 @@ class DeleteItemCommand(BaseCommand):
         if self._deleted_item is None:
             raise ValueError(f"Майно {self._inv_num} не знайдено")
 
-        self._item_repo.delete(self._inv_num)
+        # Зберігаємо історію для можливості скасування (undo) і видаляємо її з БД, 
+        # щоб обійти обмеження ON DELETE RESTRICT
+        self._saved_history = self._history_repo.get_for_item(self._inv_num)
+        self._history_repo.delete_all_for_item(self._inv_num)
 
-        self._history_repo.add(HistoryRecord(
-            item_inventory_number=self._inv_num,
-            operation="delete",
-            details=f"Видалено: {self._deleted_item.name}",
-        ))
+        self._item_repo.delete(self._inv_num)
 
         if self._subject:
             self._subject.notify(EventType.ITEM_DELETED, self._deleted_item)
@@ -200,6 +199,12 @@ class DeleteItemCommand(BaseCommand):
             return
         self._deleted_item.id = None
         self._item_repo.add(self._deleted_item)
+
+        # Відновлюємо попередню історію у правильному порядку
+        if hasattr(self, '_saved_history'):
+            for record in reversed(self._saved_history):
+                record.id = None
+                self._history_repo.add(record)
 
         self._history_repo.add(HistoryRecord(
             item_inventory_number=self._inv_num,
