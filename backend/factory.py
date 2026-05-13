@@ -1,11 +1,14 @@
 """
-factory.py — Патерн Factory Method / Abstract Factory.
+factory.py — Патерн Factory Method / Abstract Factory (GoF).
 
-Використовується для створення об'єктів Item різних категорій
-з дефолтними значеннями, специфічними для кожного типу майна.
+РОЛЬ ПАТЕРНА В СИСТЕМІ:
+Використовується для гнучкого створення об'єктів Item різних категорій (меблі, електроніка тощо).
+Замість прямого створення екземплярів через конструктор, клієнт (Service) звертається 
+до фабрики, яка ініціалізує об'єкт з дефолтними значеннями, специфічними для його категорії.
+Це спрощує додавання нових типів майна без зміни існуючого коду (Open/Closed Principle).
 
 Ієрархія:
-    ItemFactory (Abstract)
+    ItemFactory (Abstract Factory Method)
         ├── FurnitureFactory
         ├── ElectronicsFactory
         ├── VehicleFactory
@@ -34,6 +37,7 @@ class ItemFactory(ABC):
         cost: float,
         location: str = "",
         description: str = "",
+        photo_path: str = "",
     ) -> Item:
         """Створює об'єкт Item з категорією, характерною для фабрики."""
         ...
@@ -51,6 +55,7 @@ class ItemFactory(ABC):
         cost: float,
         location: str,
         description: str,
+        photo_path: str,
     ) -> Item:
         """Допоміжний метод: будує Item із заданими та дефолтними значеннями."""
         return Item(
@@ -62,6 +67,7 @@ class ItemFactory(ABC):
             added_at=datetime.now().isoformat(),
             location=location,
             description=description,
+            photo_path=photo_path,
         )
 
 
@@ -74,9 +80,9 @@ class FurnitureFactory(ItemFactory):
     def category(self) -> str:
         return ItemCategory.FURNITURE
 
-    def create(self, inventory_number, name, cost, location="", description="") -> Item:
+    def create(self, inventory_number, name, cost, location="", description="", photo_path="") -> Item:
         desc = description or f"Меблі: {name}"
-        return self._base_item(inventory_number, name, cost, location, desc)
+        return self._base_item(inventory_number, name, cost, location, desc, photo_path)
 
 
 class ElectronicsFactory(ItemFactory):
@@ -86,9 +92,9 @@ class ElectronicsFactory(ItemFactory):
     def category(self) -> str:
         return ItemCategory.ELECTRONICS
 
-    def create(self, inventory_number, name, cost, location="", description="") -> Item:
+    def create(self, inventory_number, name, cost, location="", description="", photo_path="") -> Item:
         desc = description or f"Електроніка: {name}"
-        return self._base_item(inventory_number, name, cost, location, desc)
+        return self._base_item(inventory_number, name, cost, location, desc, photo_path)
 
 
 class VehicleFactory(ItemFactory):
@@ -98,9 +104,9 @@ class VehicleFactory(ItemFactory):
     def category(self) -> str:
         return ItemCategory.VEHICLE
 
-    def create(self, inventory_number, name, cost, location="", description="") -> Item:
+    def create(self, inventory_number, name, cost, location="", description="", photo_path="") -> Item:
         desc = description or f"Транспорт: {name}"
-        return self._base_item(inventory_number, name, cost, location, desc)
+        return self._base_item(inventory_number, name, cost, location, desc, photo_path)
 
 
 class EquipmentFactory(ItemFactory):
@@ -110,9 +116,9 @@ class EquipmentFactory(ItemFactory):
     def category(self) -> str:
         return ItemCategory.EQUIPMENT
 
-    def create(self, inventory_number, name, cost, location="", description="") -> Item:
+    def create(self, inventory_number, name, cost, location="", description="", photo_path="") -> Item:
         desc = description or f"Обладнання: {name}"
-        return self._base_item(inventory_number, name, cost, location, desc)
+        return self._base_item(inventory_number, name, cost, location, desc, photo_path)
 
 
 class OtherItemFactory(ItemFactory):
@@ -122,8 +128,8 @@ class OtherItemFactory(ItemFactory):
     def category(self) -> str:
         return ItemCategory.OTHER
 
-    def create(self, inventory_number, name, cost, location="", description="") -> Item:
-        return self._base_item(inventory_number, name, cost, location, description)
+    def create(self, inventory_number, name, cost, location="", description="", photo_path="") -> Item:
+        return self._base_item(inventory_number, name, cost, location, description, photo_path)
 
 
 # ─── Реєстр фабрик (Factory Provider) ────────────────────────

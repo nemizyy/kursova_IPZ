@@ -26,6 +26,18 @@ def init_db(db_path: str = DB_PATH) -> None:
     """
     with get_connection(db_path) as conn:
         conn.executescript("""
+            CREATE TABLE IF NOT EXISTS categories (
+                name                TEXT    PRIMARY KEY,
+                label               TEXT    NOT NULL
+            );
+
+            INSERT OR IGNORE INTO categories (name, label) VALUES
+                ('furniture', 'Меблі'),
+                ('electronics', 'Електроніка'),
+                ('vehicle', 'Транспорт'),
+                ('equipment', 'Обладнання'),
+                ('other', 'Інше');
+
             CREATE TABLE IF NOT EXISTS items (
                 id                  INTEGER PRIMARY KEY AUTOINCREMENT,
                 inventory_number    TEXT    NOT NULL UNIQUE,
@@ -36,7 +48,9 @@ def init_db(db_path: str = DB_PATH) -> None:
                                             CHECK(status IN ('active', 'written_off', 'moved')),
                 added_at            TEXT    NOT NULL,
                 location            TEXT    NOT NULL DEFAULT '',
-                description         TEXT    NOT NULL DEFAULT ''
+                description         TEXT    NOT NULL DEFAULT '',
+                photo_path          TEXT    NOT NULL DEFAULT '',
+                FOREIGN KEY(category) REFERENCES categories(name) ON DELETE RESTRICT
             );
 
             CREATE TABLE IF NOT EXISTS history (
@@ -44,7 +58,8 @@ def init_db(db_path: str = DB_PATH) -> None:
                 item_inventory_number   TEXT    NOT NULL,
                 operation               TEXT    NOT NULL,
                 details                 TEXT    NOT NULL DEFAULT '',
-                performed_at            TEXT    NOT NULL
+                performed_at            TEXT    NOT NULL,
+                FOREIGN KEY(item_inventory_number) REFERENCES items(inventory_number) ON DELETE RESTRICT
             );
 
             CREATE INDEX IF NOT EXISTS idx_items_inventory ON items(inventory_number);
@@ -60,5 +75,6 @@ def drop_all_tables(db_path: str = DB_PATH) -> None:
         conn.executescript("""
             DROP TABLE IF EXISTS history;
             DROP TABLE IF EXISTS items;
+            DROP TABLE IF EXISTS categories;
         """)
     print("[DB] Всі таблиці видалено.")

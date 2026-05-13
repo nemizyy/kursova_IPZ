@@ -27,14 +27,14 @@ class ItemRepository:
         """Додає новий запис. Повертає item із заповненим id."""
         sql = """
             INSERT INTO items
-                (inventory_number, name, category, cost, status, added_at, location, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (inventory_number, name, category, cost, status, added_at, location, description, photo_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         with self._conn() as conn:
             cursor = conn.execute(sql, (
                 item.inventory_number, item.name, item.category,
                 item.cost, item.status, item.added_at,
-                item.location, item.description,
+                item.location, item.description, item.photo_path,
             ))
             item.id = cursor.lastrowid
         return item
@@ -43,20 +43,25 @@ class ItemRepository:
         """Оновлює існуючий запис за inventory_number."""
         sql = """
             UPDATE items
-            SET name=?, category=?, cost=?, status=?, location=?, description=?
+            SET name=?, category=?, cost=?, status=?, location=?, description=?, photo_path=?
             WHERE inventory_number=?
         """
         with self._conn() as conn:
             conn.execute(sql, (
                 item.name, item.category, item.cost,
-                item.status, item.location, item.description,
+                item.status, item.location, item.description, item.photo_path,
                 item.inventory_number,
             ))
 
     def delete(self, inventory_number: str) -> None:
         """Видаляє запис за інвентарним номером."""
-        with self._conn() as conn:
-            conn.execute("DELETE FROM items WHERE inventory_number=?", (inventory_number,))
+        try:
+            with self._conn() as conn:
+                conn.execute("DELETE FROM items WHERE inventory_number=?", (inventory_number,))
+        except sqlite3.IntegrityError:
+            raise ValueError(
+                f"Неможливо видалити майно «{inventory_number}», оскільки існують пов'язані записи в історії (Обмеження зовнішнього ключа)."
+            )
 
     # ── Читання ────────────────────────────────────────────────
 

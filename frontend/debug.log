@@ -1,0 +1,14 @@
+=== START ===
+flet imported OK
+backend imported OK
+UI components imported OK
+Calling ft.run...
+main() called!
+theme set OK
+service created OK, items: 0
+content_area created OK
+layout built OK
+page.add() OK
+navigate(0) called
+navigate(0) OK
+navigate(0) done

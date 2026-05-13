@@ -34,6 +34,7 @@ class Item:
     added_at: str = field(default_factory=lambda: datetime.now().isoformat())
     location: str = ""              # Місце знаходження (кімната/відділ)
     description: str = ""          # Додатковий опис
+    photo_path: str = ""           # Шлях до прикріпленої фотографії
     id: Optional[int] = None        # Primary key у БД (заповнюється після запису)
 
     def to_dict(self) -> dict:
@@ -47,6 +48,7 @@ class Item:
             "added_at": self.added_at,
             "location": self.location,
             "description": self.description,
+            "photo_path": self.photo_path,
         }
 
     @staticmethod
@@ -61,6 +63,7 @@ class Item:
             added_at=data.get("added_at", datetime.now().isoformat()),
             location=data.get("location", ""),
             description=data.get("description", ""),
+            photo_path=data.get("photo_path", ""),
         )
 
 

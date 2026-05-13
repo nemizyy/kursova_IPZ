@@ -92,6 +92,7 @@ class InventoryService:
         cost: float,
         location: str = "",
         description: str = "",
+        photo_path: str = "",
     ) -> Item:
         """
         Додати нову одиницю майна.
@@ -114,6 +115,7 @@ class InventoryService:
             cost=cost,
             location=location,
             description=description,
+            photo_path=photo_path,
         )
 
         cmd = AddItemCommand(item, self._item_repo, self._history_repo, self._subject)
@@ -128,7 +130,7 @@ class InventoryService:
         if not self._item_repo.exists(inventory_number):
             raise ValueError(f"Майно «{inventory_number}» не знайдено.")
 
-        allowed = {"name", "category", "cost", "location", "description"}
+        allowed = {"name", "category", "cost", "location", "description", "photo_path"}
         invalid = set(fields) - allowed
         if invalid:
             raise ValueError(f"Недозволені поля для редагування: {invalid}")
