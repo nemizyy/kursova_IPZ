@@ -4,4 +4,4 @@ assets/images/
 
 
 
-./backend/*.db
+backend/inventory.db
