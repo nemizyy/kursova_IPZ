@@ -18,7 +18,8 @@ import {
   MapPin,
   XCircle,
   Undo2,
-  Redo2
+  Redo2,
+  ArrowUpDown
 } from 'lucide-react';
 
 const API_URL = '/api';
@@ -179,11 +180,17 @@ function Inventory({ items, categories, onUpdate }) {
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedItemHistory, setSelectedItemHistory] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const [viewingPhoto, setViewingPhoto] = useState(null);
 
   const filteredItems = items.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          item.inventory_number.toLowerCase().includes(searchQuery.toLowerCase());
+    const sq = searchQuery.toLowerCase();
+    const itemName = item.name ? item.name.toLowerCase() : '';
+    const itemInv = item.inventory_number ? String(item.inventory_number).toLowerCase() : '';
+    const itemCat = item.category ? item.category.toLowerCase() : '';
+    
+    const matchesSearch = itemName.includes(sq) || itemInv.includes(sq) || itemCat.includes(sq);
     const matchesStatus = filterStatus ? item.status === filterStatus : true;
+
     return matchesSearch && matchesStatus;
   });
 
@@ -199,7 +206,8 @@ function Inventory({ items, categories, onUpdate }) {
       category: form.category.value,
       cost: parseFloat(form.cost.value) || 0,
       location: form.location.value || "",
-      description: form.description.value || ""
+      description: form.description.value || "",
+      purchase_date: form.purchase_date.value || ""
     };
 
     try {
@@ -213,6 +221,16 @@ function Inventory({ items, categories, onUpdate }) {
         const data = await res.json();
         // Перетворюємо в рядок, щоб catch міг розпарсити
         throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
+      }
+
+      const fileInput = form.photo;
+      if (fileInput && fileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        await fetch(`${API_URL}/items/${data.inventory_number}/photo`, {
+          method: 'POST',
+          body: formData
+        });
       }
       
       form.reset();
@@ -243,7 +261,8 @@ function Inventory({ items, categories, onUpdate }) {
       category: form.category.value,
       cost: parseFloat(form.cost.value) || 0,
       location: form.location.value || "",
-      description: form.description.value || ""
+      description: form.description.value || "",
+      purchase_date: form.purchase_date.value || ""
     };
 
     try {
@@ -253,6 +272,17 @@ function Inventory({ items, categories, onUpdate }) {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Помилка при оновленні");
+
+      const fileInput = form.photo;
+      if (fileInput && fileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        await fetch(`${API_URL}/items/${editingItem.inventory_number}/photo`, {
+          method: 'POST',
+          body: formData
+        });
+      }
+
       setEditingItem(null);
       onUpdate();
     } catch (err) { alert(err.message); }
@@ -296,7 +326,7 @@ function Inventory({ items, categories, onUpdate }) {
           <Search size={18} className="search-icon" />
           <input 
             type="text" 
-            placeholder="Пошук за назвою або номером..." 
+            placeholder="Пошук за назвою, номером або категорією..." 
             className="input-control"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -318,7 +348,7 @@ function Inventory({ items, categories, onUpdate }) {
           {editingItem ? <Edit3 size={20} /> : <Plus size={20} />}
           {editingItem ? 'Редагувати майно' : 'Додати нове майно'}
         </h3>
-        <form onSubmit={editingItem ? handleEditSubmit : handleAdd} className="form-grid">
+        <form onSubmit={editingItem ? handleEditSubmit : handleAdd} className="form-grid inventory-form">
           <div className="form-group">
             <label>Інвентарний номер</label>
             <input name="inventory_number" className="input-control" required defaultValue={editingItem?.inventory_number} disabled={!!editingItem} />
@@ -351,6 +381,14 @@ function Inventory({ items, categories, onUpdate }) {
             <label>Опис</label>
             <input name="description" className="input-control" defaultValue={editingItem?.description} />
           </div>
+          <div className="form-group">
+            <label>Дата придбання</label>
+            <input name="purchase_date" type="date" className="input-control" defaultValue={editingItem?.purchase_date} />
+          </div>
+          <div className="form-group">
+            <label>Фото</label>
+            <input name="photo" type="file" accept="image/*" className="input-control" />
+          </div>
           
           <div style={{ gridColumn: '1 / -1', marginTop: '1rem', display: 'flex', gap: '1rem' }}>
             {error && <p style={{ color: '#ef4444', marginBottom: '1rem' }}>{error}</p>}
@@ -373,6 +411,7 @@ function Inventory({ items, categories, onUpdate }) {
               <th>Категорія</th>
               <th>Вартість</th>
               <th>Статус</th>
+              <th style={{ textAlign: 'center' }}>Фото</th>
               <th>Дії</th>
             </tr>
           </thead>
@@ -382,13 +421,21 @@ function Inventory({ items, categories, onUpdate }) {
                 <td><code>{item.inventory_number}</code></td>
                 <td style={{ fontWeight: 600, color: '#fff' }}>{item.name}</td>
                 <td><span className="badge-category">{item.category}</span></td>
-                <td style={{ color: '#10b981', fontWeight: '600' }}>{item.cost.toLocaleString()} ₴</td>
+                <td style={{ color: '#10b981', fontWeight: '600' }}>{(Number(item.cost) || 0).toLocaleString()} ₴</td>
                 <td>
                   <span className={`status-badge status-${item.status}`}>
                     {item.status === 'active' ? 'Активне' : item.status === 'moved' ? 'Переміщено' : 'Списано'}
                   </span>
                 </td>
+                <td style={{ textAlign: 'center' }}>
+                  {item.photo_path ? <CheckCircle size={18} color="#10b981" /> : <XCircle size={18} color="#ef4444" />}
+                </td>
                 <td className="actions-cell">
+                  {item.photo_path ? (
+                    <button onClick={() => setViewingPhoto(item.photo_path)} title="Переглянути фото" style={{ color: '#3b82f6' }}><ImageIcon size={16}/></button>
+                  ) : (
+                    <button disabled title="Немає фото" style={{ opacity: 0.3, cursor: 'not-allowed' }}><ImageIcon size={16}/></button>
+                  )}
                   <button onClick={() => setEditingItem(item)} title="Редагувати"><Edit3 size={16}/></button>
                   <button onClick={() => handleMove(item.inventory_number)} title="Перемістити"><MapPin size={16}/></button>
                   <button onClick={() => handleWriteOff(item.inventory_number)} title="Списати"><XCircle size={16}/></button>
@@ -404,6 +451,24 @@ function Inventory({ items, categories, onUpdate }) {
       {selectedItemHistory && (
         <HistoryModal inv={selectedItemHistory} onClose={() => setSelectedItemHistory(null)} />
       )}
+      {viewingPhoto && (
+        <PhotoModal photoUrl={viewingPhoto} onClose={() => setViewingPhoto(null)} />
+      )}
+    </div>
+  );
+}
+
+function PhotoModal({ photoUrl, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content fade-in" style={{ background: 'transparent', border: 'none', boxShadow: 'none', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '90vh' }}>
+          <img src={photoUrl} alt="Фото майна" style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: '12px', objectFit: 'contain' }} />
+          <button onClick={onClose} className="btn-icon" style={{ position: 'absolute', top: '-40px', right: '0', background: 'rgba(0,0,0,0.5)', color: 'white' }}>
+            <XCircle size={24}/>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -572,7 +637,7 @@ function Reports() {
               <option value="summary">Зведений звіт</option>
               <option value="category">По категоріях</option>
               <option value="written_off">Списане майно</option>
-              <option value="value_period">Вартість за період (Req 7.2)</option>
+              <option value="value_period">Вартість за період</option>
               <option value="csv">Експорт CSV</option>
             </select>
           </div>

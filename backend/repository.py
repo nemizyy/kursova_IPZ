@@ -27,14 +27,14 @@ class ItemRepository:
         """Додає новий запис. Повертає item із заповненим id."""
         sql = """
             INSERT INTO items
-                (inventory_number, name, category, cost, status, added_at, location, description, photo_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (inventory_number, name, category, cost, status, added_at, purchase_date, location, description, photo_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         with self._conn() as conn:
             cursor = conn.execute(sql, (
                 item.inventory_number, item.name, item.category,
                 item.cost, item.status, item.added_at,
-                item.location, item.description, item.photo_path,
+                item.purchase_date, item.location, item.description, item.photo_path,
             ))
             item.id = cursor.lastrowid
         return item
@@ -43,13 +43,13 @@ class ItemRepository:
         """Оновлює існуючий запис за inventory_number."""
         sql = """
             UPDATE items
-            SET name=?, category=?, cost=?, status=?, location=?, description=?, photo_path=?
+            SET name=?, category=?, cost=?, status=?, purchase_date=?, location=?, description=?, photo_path=?
             WHERE inventory_number=?
         """
         with self._conn() as conn:
             conn.execute(sql, (
                 item.name, item.category, item.cost,
-                item.status, item.location, item.description, item.photo_path,
+                item.status, item.purchase_date, item.location, item.description, item.photo_path,
                 item.inventory_number,
             ))
 

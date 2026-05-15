@@ -49,6 +49,7 @@ def init_db(db_path: str = DB_PATH) -> None:
                 status              TEXT    NOT NULL DEFAULT 'active'
                                             CHECK(status IN ('active', 'written_off', 'moved')),
                 added_at            TEXT    NOT NULL,
+                purchase_date       TEXT    NOT NULL DEFAULT '',
                 location            TEXT    NOT NULL DEFAULT '',
                 description         TEXT    NOT NULL DEFAULT '',
                 photo_path          TEXT    NOT NULL DEFAULT '',
@@ -69,6 +70,18 @@ def init_db(db_path: str = DB_PATH) -> None:
             CREATE INDEX IF NOT EXISTS idx_history_op     ON history(operation);
         """)
     print(f"[DB] База даних ініціалізована: {db_path}")
+
+    # Міграція: додаємо purchase_date для існуючих БД
+    _migrate_add_purchase_date(db_path)
+
+
+def _migrate_add_purchase_date(db_path: str) -> None:
+    """Додає колонку purchase_date, якщо її ще немає (міграція)."""
+    with get_connection(db_path) as conn:
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()]
+        if "purchase_date" not in cols:
+            conn.execute("ALTER TABLE items ADD COLUMN purchase_date TEXT NOT NULL DEFAULT ''")
+            print("[DB] Міграція: додано колонку purchase_date")
 
 
 def drop_all_tables(db_path: str = DB_PATH) -> None:
