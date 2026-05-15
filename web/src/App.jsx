@@ -483,17 +483,19 @@ function Inventory({ items, categories, onUpdate }) {
                 <td style={{ textAlign: 'center' }}>
                   {item.photo_path ? <CheckCircle size={18} color="#10b981" /> : <XCircle size={18} color="#ef4444" />}
                 </td>
-                <td className="actions-cell">
-                  {item.photo_path ? (
-                    <button onClick={() => setViewingPhoto(item.photo_path)} title="Переглянути фото" style={{ color: '#3b82f6' }}><ImageIcon size={16}/></button>
-                  ) : (
-                    <button disabled title="Немає фото" style={{ opacity: 0.3, cursor: 'not-allowed' }}><ImageIcon size={16}/></button>
-                  )}
-                  <button onClick={() => setEditingItem(item)} title="Редагувати"><Edit3 size={16}/></button>
-                  <button onClick={() => handleMove(item.inventory_number)} title="Перемістити"><MapPin size={16}/></button>
-                  <button onClick={() => handleWriteOff(item.inventory_number)} title="Списати"><XCircle size={16}/></button>
-                  <button onClick={() => setSelectedItemHistory(item.inventory_number)} title="Історія"><History size={16}/></button>
-                  <button onClick={() => handleDelete(item.inventory_number)} title="Видалити" className="text-danger"><Trash2 size={16}/></button>
+                <td>
+                  <div className="actions-cell">
+                    {item.photo_path ? (
+                      <button onClick={() => setViewingPhoto(item.photo_path)} title="Переглянути фото" style={{ color: '#3b82f6' }}><ImageIcon size={16}/></button>
+                    ) : (
+                      <button disabled title="Немає фото" style={{ opacity: 0.3, cursor: 'not-allowed' }}><ImageIcon size={16}/></button>
+                    )}
+                    <button onClick={() => setEditingItem(item)} title="Редагувати"><Edit3 size={16}/></button>
+                    <button onClick={() => handleMove(item.inventory_number)} title="Перемістити"><MapPin size={16}/></button>
+                    <button onClick={() => handleWriteOff(item.inventory_number)} title="Списати"><XCircle size={16}/></button>
+                    <button onClick={() => setSelectedItemHistory(item.inventory_number)} title="Історія"><History size={16}/></button>
+                    <button onClick={() => handleDelete(item.inventory_number)} title="Видалити" className="text-danger"><Trash2 size={16}/></button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -614,19 +616,34 @@ function HistoryModal({ inv, onClose }) {
 
 function Categories({ hierarchy, onUpdate }) {
   const [isAdding, setIsAdding] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
   
-  const handleAdd = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
     if (!data.parent_name) delete data.parent_name;
     
-    await fetch(`${API_URL}/categories`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    setIsAdding(false);
+    if (editingCategory) {
+      await fetch(`${API_URL}/categories/${editingCategory.name}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      setEditingCategory(null);
+    } else {
+      await fetch(`${API_URL}/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      setIsAdding(false);
+    }
     onUpdate();
+  };
+
+  const handleEdit = (node) => {
+    setEditingCategory(node);
+    setIsAdding(false);
   };
 
   const handleDelete = async (name) => {
@@ -640,7 +657,7 @@ function Categories({ hierarchy, onUpdate }) {
     <div>
       <div className="page-header">
         <h1 className="page-title">Категорії Майна</h1>
-        <button className="btn btn-primary" onClick={() => setIsAdding(true)}>
+        <button className="btn btn-primary" onClick={() => { setIsAdding(true); setEditingCategory(null); }}>
           <Plus size={18} /> Нова категорія
         </button>
       </div>
@@ -649,28 +666,28 @@ function Categories({ hierarchy, onUpdate }) {
         <div className="category-tree card">
           <h3 style={{ marginBottom: '1.5rem' }}>Ієрархія категорій</h3>
           {hierarchy.length === 0 && <p style={{ color: '#94a3b8' }}>Категорії не знайдено</p>}
-          {hierarchy.map(node => <CategoryNode key={node.name} node={node} onDelete={handleDelete} />)}
+          {hierarchy.map(node => <CategoryNode key={node.name} node={node} onDelete={handleDelete} onEdit={handleEdit} />)}
         </div>
 
-        {isAdding && (
+        {(isAdding || editingCategory) && (
           <div className="form-card" style={{ flex: 1 }}>
-            <h3>Додати категорію</h3>
-            <form onSubmit={handleAdd} className="form-grid" style={{ marginTop: '1rem' }}>
+            <h3>{editingCategory ? 'Редагувати категорію' : 'Додати категорію'}</h3>
+            <form onSubmit={handleSubmit} className="form-grid" style={{ marginTop: '1rem' }}>
               <div className="form-group">
-                <label>ID (код)</label>
-                <input name="name" className="input-control" required placeholder="напр. electronics" />
+                <label>ID (код) {editingCategory && '(не змінюється)'}</label>
+                <input name="name" className="input-control" required defaultValue={editingCategory?.name || ''} readOnly={!!editingCategory} placeholder="напр. electronics" />
               </div>
               <div className="form-group">
                 <label>Назва</label>
-                <input name="label" className="input-control" required placeholder="напр. Електроніка" />
+                <input name="label" className="input-control" required defaultValue={editingCategory?.label || ''} placeholder="напр. Електроніка" />
               </div>
               <div className="form-group">
                 <label>Батьківська категорія (ID)</label>
-                <input name="parent_name" className="input-control" placeholder="напр. it (залишити порожнім для корня)" />
+                <input name="parent_name" className="input-control" defaultValue={editingCategory?.parent_name || ''} placeholder="напр. it (залишити порожнім для корня)" />
               </div>
               <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                 <button type="submit" className="btn btn-primary">Зберегти</button>
-                <button type="button" className="btn" onClick={() => setIsAdding(false)}>Скасувати</button>
+                <button type="button" className="btn" onClick={() => { setIsAdding(false); setEditingCategory(null); }}>Скасувати</button>
               </div>
             </form>
           </div>
@@ -680,7 +697,7 @@ function Categories({ hierarchy, onUpdate }) {
   );
 }
 
-function CategoryNode({ node, onDelete }) {
+function CategoryNode({ node, onDelete, onEdit }) {
   const [expanded, setExpanded] = useState(true);
   const hasChildren = node.children && node.children.length > 0;
 
@@ -692,11 +709,14 @@ function CategoryNode({ node, onDelete }) {
         </button>
         <span className="node-label">{node.label}</span>
         <span className="node-name">({node.name})</span>
-        <button className="delete-node" onClick={() => onDelete(node.name)} title="Видалити"><Trash2 size={14}/></button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+          <button className="btn-icon" onClick={() => onEdit(node)} title="Редагувати" style={{ color: '#3b82f6' }}><Edit3 size={14}/></button>
+          <button className="delete-node" onClick={() => onDelete(node.name)} title="Видалити"><Trash2 size={14}/></button>
+        </div>
       </div>
       {expanded && hasChildren && (
         <div className="node-children">
-          {node.children.map(child => <CategoryNode key={child.name} node={child} onDelete={onDelete} />)}
+          {node.children.map(child => <CategoryNode key={child.name} node={child} onDelete={onDelete} onEdit={onEdit} />)}
         </div>
       )}
     </div>
