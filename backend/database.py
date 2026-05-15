@@ -28,15 +28,17 @@ def init_db(db_path: str = DB_PATH) -> None:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS categories (
                 name                TEXT    PRIMARY KEY,
-                label               TEXT    NOT NULL
+                label               TEXT    NOT NULL,
+                parent_name         TEXT,
+                FOREIGN KEY(parent_name) REFERENCES categories(name) ON DELETE SET NULL
             );
 
-            INSERT OR IGNORE INTO categories (name, label) VALUES
-                ('furniture', 'Меблі'),
-                ('electronics', 'Електроніка'),
-                ('vehicle', 'Транспорт'),
-                ('equipment', 'Обладнання'),
-                ('other', 'Інше');
+            INSERT OR IGNORE INTO categories (name, label, parent_name) VALUES
+                ('furniture', 'Меблі', NULL),
+                ('electronics', 'Електроніка', NULL),
+                ('vehicle', 'Транспорт', NULL),
+                ('equipment', 'Обладнання', NULL),
+                ('other', 'Інше', NULL);
 
             CREATE TABLE IF NOT EXISTS items (
                 id                  INTEGER PRIMARY KEY AUTOINCREMENT,

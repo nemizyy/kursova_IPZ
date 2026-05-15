@@ -20,8 +20,8 @@ service.py — Сервісний шар (Service Layer / Facade).
 from typing import List, Optional, Callable
 
 from .database import init_db, DB_PATH
-from .models import Item, HistoryRecord, ItemStatus
-from .repository import ItemRepository, HistoryRepository
+from .models import Item, HistoryRecord, ItemStatus, Category
+from .repository import ItemRepository, HistoryRepository, CategoryRepository
 from .factory import FactoryProvider
 from .commands import (
     CommandManager,
@@ -30,6 +30,9 @@ from .commands import (
     DeleteItemCommand,
     MoveItemCommand,
     WriteOffItemCommand,
+    AddCategoryCommand,
+    EditCategoryCommand,
+    DeleteCategoryCommand,
 )
 from .strategies import (
     FilterStrategy,
@@ -44,6 +47,7 @@ from .strategies import (
     CategoryReportStrategy,
     WrittenOffReportStrategy,
     CSVReportStrategy,
+    ValueOverTimeReportStrategy,
 )
 from .observer import InventorySubject, EventType
 
@@ -61,6 +65,7 @@ class InventoryService:
         # Репозиторії
         self._item_repo    = ItemRepository(db_path)
         self._history_repo = HistoryRepository(db_path)
+        self._cat_repo     = CategoryRepository(db_path)
 
         # Invoker для Command-патерну (з підтримкою Undo/Redo)
         self._cmd_manager  = CommandManager(max_history=100)
@@ -234,8 +239,50 @@ class InventoryService:
         return self._history_repo.get_all()
 
     def available_categories(self) -> List[str]:
-        """Список зареєстрованих категорій майна."""
-        return FactoryProvider.available_categories()
+        """Список зареєстрованих категорій майна (технічні імена)."""
+        return [c.name for c in self._cat_repo.get_all()]
+
+    def get_categories(self) -> List[Category]:
+        """Повернути всі об'єкти категорій."""
+        return self._cat_repo.get_all()
+
+    def add_category(self, name: str, label: str, parent_name: Optional[str] = None) -> Category:
+        """Додати нову категорію."""
+        if self._cat_repo.exists(name):
+            raise ValueError(f"Категорія «{name}» вже існує.")
+        
+        cat = Category(name=name, label=label, parent_name=parent_name)
+        cmd = AddCategoryCommand(cat, self._cat_repo, self._subject)
+        self._cmd_manager.execute(cmd)
+        return cat
+
+    def edit_category(self, name: str, label: str, parent_name: Optional[str] = None) -> None:
+        """Редагувати існуючу категорію."""
+        if not self._cat_repo.exists(name):
+            raise ValueError(f"Категорія «{name}» не знайдена.")
+        
+        cmd = EditCategoryCommand(name, label, parent_name, self._cat_repo, self._subject)
+        self._cmd_manager.execute(cmd)
+
+    def delete_category(self, name: str) -> None:
+        """Видалити категорію."""
+        if not self._cat_repo.exists(name):
+            raise ValueError(f"Категорія «{name}» не знайдена.")
+        
+        cmd = DeleteCategoryCommand(name, self._cat_repo, self._subject)
+        self._cmd_manager.execute(cmd)
+
+    def get_category_hierarchy(self) -> List[dict]:
+        """Повернути ієрархію категорій у вигляді дерева."""
+        all_cats = self._cat_repo.get_all()
+        nodes = {c.name: {"name": c.name, "label": c.label, "children": []} for c in all_cats}
+        tree = []
+        for c in all_cats:
+            if c.parent_name and c.parent_name in nodes:
+                nodes[c.parent_name]["children"].append(nodes[c.name])
+            else:
+                tree.append(nodes[c.name])
+        return tree
 
     # ══════════════════════════════════════════════════════════
     #  Strategy: фільтрація
@@ -307,6 +354,12 @@ class InventoryService:
                 f"Доступні: {list(strategies_map.keys())}"
             )
 
+        return strategy.generate(items)
+
+    def generate_value_period_report(self, date_from: str, date_to: str) -> str:
+        """Звіт про вартість майна за певний період."""
+        items = self._item_repo.get_all()
+        strategy = ValueOverTimeReportStrategy(date_from, date_to)
         return strategy.generate(items)
 
     # ══════════════════════════════════════════════════════════

@@ -225,3 +225,37 @@ class CSVReportStrategy(ReportStrategy):
                 f"{i.cost},{i.status},{i.added_at},{i.location}"
             )
         return "\n".join(rows)
+
+
+class ValueOverTimeReportStrategy(ReportStrategy):
+    """Звіт про вартість майна за певний період (за датою придбання/додавання)."""
+
+    def __init__(self, date_from: str, date_to: str):
+        self.date_from = date_from
+        self.date_to = date_to
+
+    def generate(self, items: List[Item]) -> str:
+        # Фільтруємо за датою
+        period_items = []
+        for i in items:
+            added = i.added_at[:10]
+            if self.date_from <= added <= self.date_to:
+                period_items.append(i)
+
+        total_cost = sum(i.cost for i in period_items)
+        
+        lines = [
+            "=" * 50,
+            f"   ЗВІТ ПРО ВАРТІСТЬ МАЙНА ЗА ПЕРІОД",
+            f"      {self.date_from} — {self.date_to}",
+            "=" * 50,
+            f"Кількість доданих об'єктів: {len(period_items)}",
+            f"Сумарна вартість за період: {total_cost:,.2f} грн",
+            "-" * 50,
+            f"{'Інв. №':<15} {'Назва':<20} {'Вартість':>10}",
+        ]
+        for i in period_items:
+            lines.append(f"{i.inventory_number:<15} {i.name:<20} {i.cost:>10,.2f}")
+        
+        lines.append("=" * 50)
+        return "\n".join(lines)

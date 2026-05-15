@@ -24,6 +24,29 @@ class ItemCategory:
 
 
 @dataclass
+class Category:
+    """Модель категорії майна."""
+    name: str                       # Технічна назва (ID), напр. 'laptops'
+    label: str                      # Відображувана назва, напр. 'Ноутбуки'
+    parent_name: Optional[str] = None # Батьківська категорія
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "label": self.label,
+            "parent_name": self.parent_name,
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> "Category":
+        return Category(
+            name=data["name"],
+            label=data["label"],
+            parent_name=data.get("parent_name"),
+        )
+
+
+@dataclass
 class Item:
     """Модель одиниці майна."""
     inventory_number: str           # Унікальний інвентарний номер

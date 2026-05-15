@@ -7,7 +7,7 @@ import sqlite3
 from typing import List, Optional
 
 from .database import get_connection, DB_PATH
-from .models import Item, HistoryRecord
+from .models import Item, HistoryRecord, Category
 
 
 # ─────────────────────────── ITEMS ───────────────────────────
@@ -55,13 +55,24 @@ class ItemRepository:
 
     def delete(self, inventory_number: str) -> None:
         """Видаляє запис за інвентарним номером."""
+        # Перевірка на наявність зв'язків (Requirement 4.2)
+        with self._conn() as conn:
+            # Перевіряємо історію
+            history_count = conn.execute(
+                "SELECT COUNT(*) FROM history WHERE item_inventory_number=?", (inventory_number,)
+            ).fetchone()[0]
+            
+            if history_count > 0:
+                raise ValueError(
+                    f"Неможливо видалити майно «{inventory_number}», оскільки воно має {history_count} записів в історії. "
+                    "Спочатку видаліть історію або спишіть майно."
+                )
+
         try:
             with self._conn() as conn:
                 conn.execute("DELETE FROM items WHERE inventory_number=?", (inventory_number,))
-        except sqlite3.IntegrityError:
-            raise ValueError(
-                f"Неможливо видалити майно «{inventory_number}», оскільки існують пов'язані записи в історії (Обмеження зовнішнього ключа)."
-            )
+        except sqlite3.IntegrityError as e:
+            raise ValueError(f"Помилка цілісності БД при видаленні: {e}")
 
     # ── Читання ────────────────────────────────────────────────
 
@@ -171,3 +182,54 @@ class HistoryRepository:
         """Видаляє всю історію для конкретного майна."""
         with self._conn() as conn:
             conn.execute("DELETE FROM history WHERE item_inventory_number=?", (inventory_number,))
+
+
+# ────────────────────────── CATEGORIES ────────────────────────
+
+class CategoryRepository:
+    """CRUD-операції для таблиці categories."""
+
+    def __init__(self, db_path: str = DB_PATH):
+        self.db_path = db_path
+
+    def _conn(self) -> sqlite3.Connection:
+        return get_connection(self.db_path)
+
+    def add(self, category: Category) -> Category:
+        sql = "INSERT INTO categories (name, label, parent_name) VALUES (?, ?, ?)"
+        with self._conn() as conn:
+            conn.execute(sql, (category.name, category.label, category.parent_name))
+        return category
+
+    def update(self, category: Category) -> None:
+        sql = "UPDATE categories SET label=?, parent_name=? WHERE name=?"
+        with self._conn() as conn:
+            conn.execute(sql, (category.label, category.parent_name, category.name))
+
+    def delete(self, name: str) -> None:
+        """Видаляє категорію. Якщо є підкатегорії — вони стануть безбатьківними (ON DELETE SET NULL)."""
+        # Перевірка, чи не використовується категорія в Items
+        with self._conn() as conn:
+            item_count = conn.execute(
+                "SELECT COUNT(*) FROM items WHERE category=?", (name,)
+            ).fetchone()[0]
+            if item_count > 0:
+                raise ValueError(f"Неможливо видалити категорію «{name}», вона використовується у {item_count} об'єктів.")
+
+        with self._conn() as conn:
+            conn.execute("DELETE FROM categories WHERE name=?", (name,))
+
+    def get_all(self) -> List[Category]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM categories ORDER BY label").fetchall()
+        return [Category.from_dict(dict(r)) for r in rows]
+
+    def get_by_name(self, name: str) -> Optional[Category]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM categories WHERE name=?", (name,)).fetchone()
+        return Category.from_dict(dict(row)) if row else None
+
+    def exists(self, name: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute("SELECT 1 FROM categories WHERE name=?", (name,)).fetchone()
+        return row is not None

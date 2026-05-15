@@ -42,11 +42,20 @@ class ItemUpdate(BaseModel):
 class FilterParams(BaseModel):
     min_cost: Optional[float] = None
     max_cost: Optional[float] = None
-    date_from: Optional[str] = None  # ISO date YYYY-MM-DD
+    date_from: Optional[str] = None
     date_to: Optional[str] = None
     status: Optional[str] = None
     category: Optional[str] = None
     location: Optional[str] = None
+
+class CategoryCreate(BaseModel):
+    name: str
+    label: str
+    parent_name: Optional[str] = None
+
+class CategoryUpdate(BaseModel):
+    label: Optional[str] = None
+    parent_name: Optional[str] = None
 
 # ─── API endpoints ───────────────────────────────────────
 
@@ -124,17 +133,77 @@ def filter_items(params: FilterParams):
     )
     return [i.to_dict() for i in items]
 
+@app.get("/items/search", response_model=List[dict])
+def search_items(q: str = Query(...)):
+    return [i.to_dict() for i in service.search_items(q)]
+
 @app.get("/history/{inv}", response_model=List[dict])
 def item_history(inv: str):
     return [r.to_dict() for r in service.get_history(inv)]
 
 @app.get("/report/{type}")
-def generate_report(type: str):
+def generate_report(type: str, date_from: Optional[str] = None, date_to: Optional[str] = None):
     try:
-        report = service.generate_report(report_type=type)
+        if type == "value_period" and date_from and date_to:
+            report = service.generate_value_period_report(date_from, date_to)
+        else:
+            report = service.generate_report(report_type=type)
         return {"type": type, "report": report}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# ─── Categories API ──────────────────────────────────────
+
+@app.get("/categories", response_model=List[dict])
+def list_categories():
+    return [c.to_dict() for c in service.get_categories()]
+
+@app.get("/categories/hierarchy")
+def get_hierarchy():
+    return service.get_category_hierarchy()
+
+@app.post("/categories")
+def add_category(payload: CategoryCreate):
+    try:
+        cat = service.add_category(payload.name, payload.label, payload.parent_name)
+        return {"status": "added", "category": cat.to_dict()}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.patch("/categories/{name}")
+def edit_category(name: str, payload: CategoryUpdate):
+    try:
+        service.edit_category(name, payload.label, payload.parent_name)
+        return {"status": "updated", "name": name}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/categories/{name}")
+def delete_category(name: str):
+    try:
+        service.delete_category(name)
+        return {"status": "deleted", "name": name}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# ─── Stats API ──────────────────────────────────────────
+
+@app.get("/stats")
+def get_stats():
+    items = service.get_all_items()
+    categories = service.get_categories()
+    
+    total_cost = sum(i.cost for i in items)
+    active = sum(1 for i in items if i.status == "active")
+    written_off = sum(1 for i in items if i.status == "written_off")
+    
+    return {
+        "total_items": len(items),
+        "active_items": active,
+        "written_off": written_off,
+        "total_cost": total_cost,
+        "categories": len(categories)
+    }
 
 # Optional: expose undo/redo for debugging
 @app.post("/undo")

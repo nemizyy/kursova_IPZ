@@ -24,8 +24,8 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import List, Optional
 
-from .models import Item, HistoryRecord, ItemStatus
-from .repository import ItemRepository, HistoryRepository
+from .models import Item, HistoryRecord, ItemStatus, Category
+from .repository import ItemRepository, HistoryRepository, CategoryRepository
 from .observer import InventorySubject, EventType
 
 
@@ -125,17 +125,24 @@ class EditItemCommand(BaseCommand):
             raise ValueError(f"Майно {self._inv_num} не знайдено")
 
         updated = deepcopy(self._old_item)
+        detailed_changes = []
         for key, value in self._new_data.items():
             if hasattr(updated, key):
-                setattr(updated, key, value)
+                old_val = getattr(updated, key)
+                if old_val != value:
+                    detailed_changes.append(f"{key}: «{old_val}» -> «{value}»")
+                    setattr(updated, key, value)
+
+        if not detailed_changes:
+            return # Нічого не змінилось
 
         self._item_repo.update(updated)
 
-        changes = ", ".join(f"{k}={v}" for k, v in self._new_data.items())
+        changes_str = "; ".join(detailed_changes)
         self._history_repo.add(HistoryRecord(
             item_inventory_number=self._inv_num,
             operation="edit",
-            details=f"Оновлено поля: {changes}",
+            details=f"Змінено: {changes_str}",
         ))
 
         if self._subject:
@@ -339,6 +346,80 @@ class WriteOffItemCommand(BaseCommand):
     @property
     def description(self) -> str:
         return f"Списати [{self._inv_num}]"
+
+
+# ────────────────────────── CATEGORY COMMANDS ────────────────
+
+class AddCategoryCommand(BaseCommand):
+    def __init__(self, category: Category, repo: CategoryRepository, subject: Optional[InventorySubject] = None):
+        self._cat = category
+        self._repo = repo
+        self._subject = subject
+
+    def execute(self) -> None:
+        self._repo.add(self._cat)
+        if self._subject:
+            self._subject.notify("category_added", self._cat)
+
+    def undo(self) -> None:
+        self._repo.delete(self._cat.name)
+        if self._subject:
+            self._subject.notify("category_deleted", self._cat)
+
+    @property
+    def description(self) -> str:
+        return f"Додати категорію «{self._cat.label}»"
+
+
+class EditCategoryCommand(BaseCommand):
+    def __init__(self, name: str, new_label: str, new_parent: Optional[str], repo: CategoryRepository, subject: Optional[InventorySubject] = None):
+        self._name = name
+        self._new_label = new_label
+        self._new_parent = new_parent
+        self._repo = repo
+        self._subject = subject
+        self._old_cat: Optional[Category] = None
+
+    def execute(self) -> None:
+        self._old_cat = deepcopy(self._repo.get_by_name(self._name))
+        updated = Category(name=self._name, label=self._new_label, parent_name=self._new_parent)
+        self._repo.update(updated)
+        if self._subject:
+            self._subject.notify("category_updated", updated)
+
+    def undo(self) -> None:
+        if self._old_cat:
+            self._repo.update(self._old_cat)
+            if self._subject:
+                self._subject.notify("category_updated", self._old_cat)
+
+    @property
+    def description(self) -> str:
+        return f"Редагувати категорію «{self._name}»"
+
+
+class DeleteCategoryCommand(BaseCommand):
+    def __init__(self, name: str, repo: CategoryRepository, subject: Optional[InventorySubject] = None):
+        self._name = name
+        self._repo = repo
+        self._subject = subject
+        self._deleted_cat: Optional[Category] = None
+
+    def execute(self) -> None:
+        self._deleted_cat = self._repo.get_by_name(self._name)
+        self._repo.delete(self._name)
+        if self._subject:
+            self._subject.notify("category_deleted", self._deleted_cat)
+
+    def undo(self) -> None:
+        if self._deleted_cat:
+            self._repo.add(self._deleted_cat)
+            if self._subject:
+                self._subject.notify("category_added", self._deleted_cat)
+
+    @property
+    def description(self) -> str:
+        return f"Видалити категорію «{self._name}»"
 
 
 # ─── Invoker (менеджер команд) ────────────────────────────────
