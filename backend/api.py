@@ -92,9 +92,6 @@ if os.path.exists(dist_path):
     
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        if full_path.startswith("api/"):
-            raise HTTPException(status_code=404, detail="API route not found")
-            
         file_path = os.path.join(dist_path, full_path)
         if os.path.isfile(file_path):
             from fastapi.responses import FileResponse
