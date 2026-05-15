@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   PackageSearch, 
@@ -19,7 +19,9 @@ import {
   XCircle,
   Undo2,
   Redo2,
-  ArrowUpDown
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 
 const API_URL = '/api';
@@ -181,6 +183,10 @@ function Inventory({ items, categories, onUpdate }) {
   const [selectedItemHistory, setSelectedItemHistory] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [viewingPhoto, setViewingPhoto] = useState(null);
+  const [activeFilterPopover, setActiveFilterPopover] = useState(null);
+  const [costFilter, setCostFilter] = useState({ min: '', max: '' });
+  const [dateFilter, setDateFilter] = useState({ from: '', to: '' });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
   const filteredItems = items.filter(item => {
     const sq = searchQuery.toLowerCase();
@@ -191,8 +197,39 @@ function Inventory({ items, categories, onUpdate }) {
     const matchesSearch = itemName.includes(sq) || itemInv.includes(sq) || itemCat.includes(sq);
     const matchesStatus = filterStatus ? item.status === filterStatus : true;
 
-    return matchesSearch && matchesStatus;
+    let matchesCost = true;
+    if (costFilter.min !== '') matchesCost = matchesCost && (Number(item.cost) || 0) >= Number(costFilter.min);
+    if (costFilter.max !== '') matchesCost = matchesCost && (Number(item.cost) || 0) <= Number(costFilter.max);
+
+    let matchesDate = true;
+    const pDate = item.purchase_date || '';
+    if (dateFilter.from !== '') matchesDate = matchesDate && pDate >= dateFilter.from;
+    if (dateFilter.to !== '') matchesDate = matchesDate && pDate <= dateFilter.to;
+
+    return matchesSearch && matchesStatus && matchesCost && matchesDate;
   });
+
+  const sortedItems = useMemo(() => {
+    if (!sortConfig.key || !sortConfig.direction) return filteredItems;
+    const sorted = [...filteredItems];
+    sorted.sort((a, b) => {
+      if (sortConfig.key === 'cost') {
+        const ca = Number(a.cost) || 0;
+        const cb = Number(b.cost) || 0;
+        return sortConfig.direction === 'asc' ? ca - cb : cb - ca;
+      }
+      if (sortConfig.key === 'purchase_date') {
+        const da = a.purchase_date || '';
+        const db = b.purchase_date || '';
+        if (!da && !db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return sortConfig.direction === 'asc' ? da.localeCompare(db) : db.localeCompare(da);
+      }
+      return 0;
+    });
+    return sorted;
+  }, [filteredItems, sortConfig]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -409,19 +446,35 @@ function Inventory({ items, categories, onUpdate }) {
               <th>Інв. номер</th>
               <th>Назва</th>
               <th>Категорія</th>
-              <th>Вартість</th>
+              <th>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Вартість 
+                  <button className="btn-icon" style={{ padding: '2px', color: (costFilter.min || costFilter.max) ? '#10b981' : '#94a3b8' }} onClick={() => setActiveFilterPopover('cost')} title="Фільтр по вартості">
+                    <Filter size={14} />
+                  </button>
+                </div>
+              </th>
+              <th>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Дата придбання 
+                  <button className="btn-icon" style={{ padding: '2px', color: (dateFilter.from || dateFilter.to) ? '#10b981' : '#94a3b8' }} onClick={() => setActiveFilterPopover('date')} title="Фільтр по даті">
+                    <Filter size={14} />
+                  </button>
+                </div>
+              </th>
               <th>Статус</th>
               <th style={{ textAlign: 'center' }}>Фото</th>
               <th>Дії</th>
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map(item => (
+            {sortedItems.map(item => (
               <tr key={item.inventory_number}>
                 <td><code>{item.inventory_number}</code></td>
                 <td style={{ fontWeight: 600, color: '#fff' }}>{item.name}</td>
                 <td><span className="badge-category">{item.category}</span></td>
                 <td style={{ color: '#10b981', fontWeight: '600' }}>{(Number(item.cost) || 0).toLocaleString()} ₴</td>
+                <td style={{ color: '#94a3b8' }}>{item.purchase_date ? new Date(item.purchase_date).toLocaleDateString('uk-UA') : '—'}</td>
                 <td>
                   <span className={`status-badge status-${item.status}`}>
                     {item.status === 'active' ? 'Активне' : item.status === 'moved' ? 'Переміщено' : 'Списано'}
@@ -453,6 +506,60 @@ function Inventory({ items, categories, onUpdate }) {
       )}
       {viewingPhoto && (
         <PhotoModal photoUrl={viewingPhoto} onClose={() => setViewingPhoto(null)} />
+      )}
+      
+      {activeFilterPopover === 'cost' && (
+        <div className="modal-overlay" style={{ background: 'transparent', backdropFilter: 'none' }} onClick={() => setActiveFilterPopover(null)}>
+          <div className="modal-content fade-in" style={{ maxWidth: '380px', padding: '2.5rem', border: '1px solid var(--border-color)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#fff', fontSize: '1.25rem' }}>Фільтр за Вартістю</h3>
+            <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Вартість від:</div>
+            <input type="number" className="input-control" value={costFilter.min} onChange={e => setCostFilter({...costFilter, min: e.target.value})} style={{ marginBottom: '1.25rem' }} />
+            <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Вартість до:</div>
+            <input type="number" className="input-control" value={costFilter.max} onChange={e => setCostFilter({...costFilter, max: e.target.value})} style={{ marginBottom: '1.5rem' }} />
+            <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Сортування:</div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className={`btn ${sortConfig.key === 'cost' && sortConfig.direction === 'asc' ? 'btn-primary' : ''}`} style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setSortConfig({ key: 'cost', direction: 'asc' })}>
+                  <ArrowUp size={14} /> Зростання
+                </button>
+                <button className={`btn ${sortConfig.key === 'cost' && sortConfig.direction === 'desc' ? 'btn-primary' : ''}`} style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setSortConfig({ key: 'cost', direction: 'desc' })}>
+                  <ArrowDown size={14} /> Спадання
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button className="btn btn-primary" style={{ flex: 1, padding: '0.6rem' }} onClick={() => setActiveFilterPopover(null)}>ОК</button>
+              <button className="btn" style={{ padding: '0.6rem' }} onClick={() => { setCostFilter({min:'', max:''}); setSortConfig({key: null, direction: null}); setActiveFilterPopover(null); }}>Скинути</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {activeFilterPopover === 'date' && (
+        <div className="modal-overlay" style={{ background: 'transparent', backdropFilter: 'none' }} onClick={() => setActiveFilterPopover(null)}>
+          <div className="modal-content fade-in" style={{ maxWidth: '380px', padding: '2.5rem', border: '1px solid var(--border-color)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#fff', fontSize: '1.25rem' }}>Фільтр за Датою</h3>
+            <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Дата від:</div>
+            <input type="date" className="input-control" value={dateFilter.from} onChange={e => setDateFilter({...dateFilter, from: e.target.value})} style={{ marginBottom: '1.25rem' }} />
+            <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Дата до:</div>
+            <input type="date" className="input-control" value={dateFilter.to} onChange={e => setDateFilter({...dateFilter, to: e.target.value})} style={{ marginBottom: '1.5rem' }} />
+            <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Сортування:</div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className={`btn ${sortConfig.key === 'purchase_date' && sortConfig.direction === 'asc' ? 'btn-primary' : ''}`} style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setSortConfig({ key: 'purchase_date', direction: 'asc' })}>
+                  <ArrowUp size={14} /> Старіші
+                </button>
+                <button className={`btn ${sortConfig.key === 'purchase_date' && sortConfig.direction === 'desc' ? 'btn-primary' : ''}`} style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setSortConfig({ key: 'purchase_date', direction: 'desc' })}>
+                  <ArrowDown size={14} /> Новіші
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button className="btn btn-primary" style={{ flex: 1, padding: '0.6rem' }} onClick={() => setActiveFilterPopover(null)}>ОК</button>
+              <button className="btn" style={{ padding: '0.6rem' }} onClick={() => { setDateFilter({from:'', to:''}); setSortConfig({key: null, direction: null}); setActiveFilterPopover(null); }}>Скинути</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
