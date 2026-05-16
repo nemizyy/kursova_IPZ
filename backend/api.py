@@ -129,9 +129,14 @@ def edit_item(inv: str, payload: ItemUpdate):
     fields = {k: v for k, v in payload.dict().items() if v is not None}
     try:
         service.edit_item(inv, **fields)
-        return {"status": "updated", "inventory_number": inv}
+        return {"status": "ok"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # Handle database integrity errors (like foreign key failure)
+        if "FOREIGN KEY constraint failed" in str(e):
+            raise HTTPException(status_code=400, detail="Помилка: вказана категорія не існує в базі даних.")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/items/{inv}")
 def delete_item(inv: str):

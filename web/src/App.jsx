@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { 
-  LayoutDashboard, 
-  PackageSearch, 
-  CheckCircle, 
-  Trash2, 
+import {
+  LayoutDashboard,
+  PackageSearch,
+  CheckCircle,
+  Trash2,
   Tags,
   Plus,
   Image as ImageIcon,
@@ -65,30 +65,30 @@ export default function App() {
           <Box className="logo-icon" size={28} />
           <span>Система Обліку</span>
         </div>
-        
+
         <nav className="nav-links">
-          <a 
+          <a
             className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => setActiveTab('dashboard')}
           >
             <LayoutDashboard size={20} />
             Дашборд
           </a>
-          <a 
+          <a
             className={`nav-item ${activeTab === 'inventory' ? 'active' : ''}`}
             onClick={() => setActiveTab('inventory')}
           >
             <PackageSearch size={20} />
             Майно
           </a>
-          <a 
+          <a
             className={`nav-item ${activeTab === 'categories' ? 'active' : ''}`}
             onClick={() => setActiveTab('categories')}
           >
             <Tags size={20} />
             Категорії
           </a>
-          <a 
+          <a
             className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
             onClick={() => setActiveTab('reports')}
           >
@@ -98,10 +98,10 @@ export default function App() {
         </nav>
 
         <div className="sidebar-footer" style={{ padding: '1rem', borderTop: '1px solid #1e293b', display: 'flex', gap: '0.5rem' }}>
-          <button onClick={() => fetch(`${API_URL}/undo`, {method: 'POST'}).then(fetchData)} title="Undo" className="btn btn-icon">
+          <button onClick={() => fetch(`${API_URL}/undo`, { method: 'POST' }).then(fetchData)} title="Undo" className="btn btn-icon">
             <Undo2 size={18} />
           </button>
-          <button onClick={() => fetch(`${API_URL}/redo`, {method: 'POST'}).then(fetchData)} title="Redo" className="btn btn-icon">
+          <button onClick={() => fetch(`${API_URL}/redo`, { method: 'POST' }).then(fetchData)} title="Redo" className="btn btn-icon">
             <Redo2 size={18} />
           </button>
         </div>
@@ -112,16 +112,16 @@ export default function App() {
         <div className="fade-in">
           {activeTab === 'dashboard' && <Dashboard stats={stats} />}
           {activeTab === 'inventory' && (
-            <Inventory 
-              items={items} 
-              categories={categories} 
-              onUpdate={fetchData} 
+            <Inventory
+              items={items}
+              categories={categories}
+              onUpdate={fetchData}
             />
           )}
           {activeTab === 'categories' && (
-            <Categories 
-              hierarchy={hierarchy} 
-              onUpdate={fetchData} 
+            <Categories
+              hierarchy={hierarchy}
+              onUpdate={fetchData}
             />
           )}
           {activeTab === 'reports' && <Reports />}
@@ -144,10 +144,10 @@ function Dashboard({ stats }) {
       </div>
 
       <div className="stats-grid">
-        <StatCard icon={<Tags size={28}/>} label="Категорій" value={stats.categories} color="#4f46e5" />
-        <StatCard icon={<PackageSearch size={28}/>} label="Всього об'єктів" value={stats.total_items} color="#10b981" />
-        <StatCard icon={<CheckCircle size={28}/>} label="Активних" value={stats.active_items} color="#0ea5e9" />
-        <StatCard icon={<Trash2 size={28}/>} label="Списано" value={stats.written_off} color="#ef4444" />
+        <StatCard icon={<Tags size={28} />} label="Категорій" value={stats.categories} color="#4f46e5" />
+        <StatCard icon={<PackageSearch size={28} />} label="Всього об'єктів" value={stats.total_items} color="#10b981" />
+        <StatCard icon={<CheckCircle size={28} />} label="Активних" value={stats.active_items} color="#0ea5e9" />
+        <StatCard icon={<Trash2 size={28} />} label="Списано" value={stats.written_off} color="#ef4444" />
       </div>
 
       <div className="form-card" style={{ maxWidth: '400px', marginTop: '2rem' }}>
@@ -193,7 +193,7 @@ function Inventory({ items, categories, onUpdate }) {
     const itemName = item.name ? item.name.toLowerCase() : '';
     const itemInv = item.inventory_number ? String(item.inventory_number).toLowerCase() : '';
     const itemCat = item.category ? item.category.toLowerCase() : '';
-    
+
     const matchesSearch = itemName.includes(sq) || itemInv.includes(sq) || itemCat.includes(sq);
     const matchesStatus = filterStatus ? item.status === filterStatus : true;
 
@@ -235,7 +235,7 @@ function Inventory({ items, categories, onUpdate }) {
     e.preventDefault();
     setError('');
     const form = e.target;
-    
+
     // Explicitly extract values to be safe
     const data = {
       inventory_number: form.inventory_number.value,
@@ -253,7 +253,7 @@ function Inventory({ items, categories, onUpdate }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      
+
       if (!res.ok) {
         const data = await res.json();
         // Перетворюємо в рядок, щоб catch міг розпарсити
@@ -269,7 +269,7 @@ function Inventory({ items, categories, onUpdate }) {
           body: formData
         });
       }
-      
+
       form.reset();
       onUpdate();
     } catch (err) {
@@ -277,12 +277,12 @@ function Inventory({ items, categories, onUpdate }) {
       try {
         const parsed = JSON.parse(msg);
         if (Array.isArray(parsed)) {
-          msg = parsed.map(e => `${e.loc[e.loc.length-1]}: ${e.msg}`).join(', ');
+          msg = parsed.map(e => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(', ');
         } else if (typeof parsed === 'object') {
           msg = parsed.msg || JSON.stringify(parsed);
         }
       } catch (e) { /* не JSON */ }
-      
+
       if (msg.includes('[object Object]')) {
         msg = "Помилка валідації: перевірте правильність заповнення полів";
       }
@@ -361,9 +361,9 @@ function Inventory({ items, categories, onUpdate }) {
       <div className="inventory-actions">
         <div className="search-box">
           <Search size={18} className="search-icon" />
-          <input 
-            type="text" 
-            placeholder="Пошук за назвою, номером або категорією..." 
+          <input
+            type="text"
+            placeholder="Пошук за назвою, номером або категорією..."
             className="input-control"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -396,13 +396,17 @@ function Inventory({ items, categories, onUpdate }) {
           </div>
           <div className="form-group">
             <label>Категорія</label>
-            <select name="category" className="input-control" defaultValue={editingItem?.category}>
-              <option value="">-- {categories.length === 0 ? 'Категорії завантажуються...' : 'Виберіть категорію'} --</option>
-              {categories.map(c => (
-                <option key={c.name || c} value={c.name || c}>
-                  {c.label || c}
-                </option>
-              ))}
+            <select name="category" className="input-control" required defaultValue={editingItem?.category || ""}>
+              <option value="" disabled={!!editingItem}>-- {categories.length === 0 ? 'Категорії завантажуються...' : 'Виберіть категорію'} --</option>
+              {categories.map(c => {
+                const val = c.name || c;
+                const lab = c.label || c;
+                return (
+                  <option key={val} value={val}>
+                    {lab}
+                  </option>
+                );
+              })}
             </select>
             {categories.length === 0 && <button type="button" onClick={onUpdate} style={{ fontSize: '0.7rem', color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer' }}>Оновити список</button>}
           </div>
@@ -426,7 +430,7 @@ function Inventory({ items, categories, onUpdate }) {
             <label>Фото</label>
             <input name="photo" type="file" accept="image/*" className="input-control" />
           </div>
-          
+
           <div style={{ gridColumn: '1 / -1', marginTop: '1rem', display: 'flex', gap: '1rem' }}>
             {error && <p style={{ color: '#ef4444', marginBottom: '1rem' }}>{error}</p>}
             <button type="submit" className="btn btn-primary">
@@ -448,7 +452,7 @@ function Inventory({ items, categories, onUpdate }) {
               <th>Категорія</th>
               <th>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  Вартість 
+                  Вартість
                   <button className="btn-icon" style={{ padding: '2px', color: (costFilter.min || costFilter.max) ? '#10b981' : '#94a3b8' }} onClick={() => setActiveFilterPopover('cost')} title="Фільтр по вартості">
                     <Filter size={14} />
                   </button>
@@ -456,7 +460,7 @@ function Inventory({ items, categories, onUpdate }) {
               </th>
               <th>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  Дата придбання 
+                  Дата придбання
                   <button className="btn-icon" style={{ padding: '2px', color: (dateFilter.from || dateFilter.to) ? '#10b981' : '#94a3b8' }} onClick={() => setActiveFilterPopover('date')} title="Фільтр по даті">
                     <Filter size={14} />
                   </button>
@@ -486,15 +490,15 @@ function Inventory({ items, categories, onUpdate }) {
                 <td>
                   <div className="actions-cell">
                     {item.photo_path ? (
-                      <button onClick={() => setViewingPhoto(item.photo_path)} title="Переглянути фото" style={{ color: '#3b82f6' }}><ImageIcon size={16}/></button>
+                      <button onClick={() => setViewingPhoto(item.photo_path)} title="Переглянути фото" style={{ color: '#3b82f6' }}><ImageIcon size={16} /></button>
                     ) : (
-                      <button disabled title="Немає фото" style={{ opacity: 0.3, cursor: 'not-allowed' }}><ImageIcon size={16}/></button>
+                      <button disabled title="Немає фото" style={{ opacity: 0.3, cursor: 'not-allowed' }}><ImageIcon size={16} /></button>
                     )}
-                    <button onClick={() => setEditingItem(item)} title="Редагувати"><Edit3 size={16}/></button>
-                    <button onClick={() => handleMove(item.inventory_number)} title="Перемістити"><MapPin size={16}/></button>
-                    <button onClick={() => handleWriteOff(item.inventory_number)} title="Списати"><XCircle size={16}/></button>
-                    <button onClick={() => setSelectedItemHistory(item.inventory_number)} title="Історія"><History size={16}/></button>
-                    <button onClick={() => handleDelete(item.inventory_number)} title="Видалити" className="text-danger"><Trash2 size={16}/></button>
+                    <button onClick={() => setEditingItem(item)} title="Редагувати"><Edit3 size={16} /></button>
+                    <button onClick={() => handleMove(item.inventory_number)} title="Перемістити"><MapPin size={16} /></button>
+                    <button onClick={() => handleWriteOff(item.inventory_number)} title="Списати"><XCircle size={16} /></button>
+                    <button onClick={() => setSelectedItemHistory(item.inventory_number)} title="Історія"><History size={16} /></button>
+                    <button onClick={() => handleDelete(item.inventory_number)} title="Видалити" className="text-danger"><Trash2 size={16} /></button>
                   </div>
                 </td>
               </tr>
@@ -509,15 +513,15 @@ function Inventory({ items, categories, onUpdate }) {
       {viewingPhoto && (
         <PhotoModal photoUrl={viewingPhoto} onClose={() => setViewingPhoto(null)} />
       )}
-      
+
       {activeFilterPopover === 'cost' && (
         <div className="modal-overlay" style={{ background: 'transparent', backdropFilter: 'none' }} onClick={() => setActiveFilterPopover(null)}>
           <div className="modal-content fade-in" style={{ maxWidth: '380px', padding: '2.5rem', border: '1px solid var(--border-color)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#fff', fontSize: '1.25rem' }}>Фільтр за Вартістю</h3>
             <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Вартість від:</div>
-            <input type="number" className="input-control" value={costFilter.min} onChange={e => setCostFilter({...costFilter, min: e.target.value})} style={{ marginBottom: '1.25rem' }} />
+            <input type="number" className="input-control" value={costFilter.min} onChange={e => setCostFilter({ ...costFilter, min: e.target.value })} style={{ marginBottom: '1.25rem' }} />
             <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Вартість до:</div>
-            <input type="number" className="input-control" value={costFilter.max} onChange={e => setCostFilter({...costFilter, max: e.target.value})} style={{ marginBottom: '1.5rem' }} />
+            <input type="number" className="input-control" value={costFilter.max} onChange={e => setCostFilter({ ...costFilter, max: e.target.value })} style={{ marginBottom: '1.5rem' }} />
             <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Сортування:</div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -531,20 +535,20 @@ function Inventory({ items, categories, onUpdate }) {
             </div>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button className="btn btn-primary" style={{ flex: 1, padding: '0.6rem' }} onClick={() => setActiveFilterPopover(null)}>ОК</button>
-              <button className="btn" style={{ padding: '0.6rem' }} onClick={() => { setCostFilter({min:'', max:''}); setSortConfig({key: null, direction: null}); setActiveFilterPopover(null); }}>Скинути</button>
+              <button className="btn" style={{ padding: '0.6rem' }} onClick={() => { setCostFilter({ min: '', max: '' }); setSortConfig({ key: null, direction: null }); setActiveFilterPopover(null); }}>Скинути</button>
             </div>
           </div>
         </div>
       )}
-      
+
       {activeFilterPopover === 'date' && (
         <div className="modal-overlay" style={{ background: 'transparent', backdropFilter: 'none' }} onClick={() => setActiveFilterPopover(null)}>
           <div className="modal-content fade-in" style={{ maxWidth: '380px', padding: '2.5rem', border: '1px solid var(--border-color)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#fff', fontSize: '1.25rem' }}>Фільтр за Датою</h3>
             <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Дата від:</div>
-            <input type="date" className="input-control" value={dateFilter.from} onChange={e => setDateFilter({...dateFilter, from: e.target.value})} style={{ marginBottom: '1.25rem' }} />
+            <input type="date" className="input-control" value={dateFilter.from} onChange={e => setDateFilter({ ...dateFilter, from: e.target.value })} style={{ marginBottom: '1.25rem' }} />
             <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Дата до:</div>
-            <input type="date" className="input-control" value={dateFilter.to} onChange={e => setDateFilter({...dateFilter, to: e.target.value})} style={{ marginBottom: '1.5rem' }} />
+            <input type="date" className="input-control" value={dateFilter.to} onChange={e => setDateFilter({ ...dateFilter, to: e.target.value })} style={{ marginBottom: '1.5rem' }} />
             <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Сортування:</div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -558,7 +562,7 @@ function Inventory({ items, categories, onUpdate }) {
             </div>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button className="btn btn-primary" style={{ flex: 1, padding: '0.6rem' }} onClick={() => setActiveFilterPopover(null)}>ОК</button>
-              <button className="btn" style={{ padding: '0.6rem' }} onClick={() => { setDateFilter({from:'', to:''}); setSortConfig({key: null, direction: null}); setActiveFilterPopover(null); }}>Скинути</button>
+              <button className="btn" style={{ padding: '0.6rem' }} onClick={() => { setDateFilter({ from: '', to: '' }); setSortConfig({ key: null, direction: null }); setActiveFilterPopover(null); }}>Скинути</button>
             </div>
           </div>
         </div>
@@ -574,7 +578,7 @@ function PhotoModal({ photoUrl, onClose }) {
         <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '90vh' }}>
           <img src={photoUrl} alt="Фото майна" style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: '12px', objectFit: 'contain' }} />
           <button onClick={onClose} className="btn-icon" style={{ position: 'absolute', top: '-40px', right: '0', background: 'rgba(0,0,0,0.5)', color: 'white' }}>
-            <XCircle size={24}/>
+            <XCircle size={24} />
           </button>
         </div>
       </div>
@@ -593,7 +597,7 @@ function HistoryModal({ inv, onClose }) {
       <div className="modal-content fade-in">
         <div className="modal-header">
           <h3>Історія змін: {inv}</h3>
-          <button onClick={onClose} className="btn-icon"><XCircle size={20}/></button>
+          <button onClick={onClose} className="btn-icon"><XCircle size={20} /></button>
         </div>
         <div className="history-list">
           {history.length === 0 && <p style={{ color: '#94a3b8', textAlign: 'center', padding: '2rem' }}>Історія порожня</p>}
@@ -617,12 +621,12 @@ function HistoryModal({ inv, onClose }) {
 function Categories({ hierarchy, onUpdate }) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
     if (!data.parent_name) delete data.parent_name;
-    
+
     if (editingCategory) {
       await fetch(`${API_URL}/categories/${editingCategory.name}`, {
         method: 'PATCH',
@@ -705,13 +709,13 @@ function CategoryNode({ node, onDelete, onEdit }) {
     <div className="category-node">
       <div className="node-content">
         <button className="toggle-btn" onClick={() => setExpanded(!expanded)} style={{ opacity: hasChildren ? 1 : 0 }}>
-          {expanded ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}
+          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </button>
         <span className="node-label">{node.label}</span>
         <span className="node-name">({node.name})</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
-          <button className="btn-icon" onClick={() => onEdit(node)} title="Редагувати" style={{ color: '#3b82f6' }}><Edit3 size={14}/></button>
-          <button className="delete-node" onClick={() => onDelete(node.name)} title="Видалити"><Trash2 size={14}/></button>
+          <button className="btn-icon" onClick={() => onEdit(node)} title="Редагувати" style={{ color: '#3b82f6' }}><Edit3 size={14} /></button>
+          <button className="delete-node" onClick={() => onDelete(node.name)} title="Видалити"><Trash2 size={14} /></button>
         </div>
       </div>
       {expanded && hasChildren && (
