@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   PackageSearch, 
@@ -18,7 +18,10 @@ import {
   MapPin,
   XCircle,
   Undo2,
-  Redo2
+  Redo2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 
 const API_URL = '/api';
@@ -179,13 +182,54 @@ function Inventory({ items, categories, onUpdate }) {
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedItemHistory, setSelectedItemHistory] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const [viewingPhoto, setViewingPhoto] = useState(null);
+  const [activeFilterPopover, setActiveFilterPopover] = useState(null);
+  const [costFilter, setCostFilter] = useState({ min: '', max: '' });
+  const [dateFilter, setDateFilter] = useState({ from: '', to: '' });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
   const filteredItems = items.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          item.inventory_number.toLowerCase().includes(searchQuery.toLowerCase());
+    const sq = searchQuery.toLowerCase();
+    const itemName = item.name ? item.name.toLowerCase() : '';
+    const itemInv = item.inventory_number ? String(item.inventory_number).toLowerCase() : '';
+    const itemCat = item.category ? item.category.toLowerCase() : '';
+    
+    const matchesSearch = itemName.includes(sq) || itemInv.includes(sq) || itemCat.includes(sq);
     const matchesStatus = filterStatus ? item.status === filterStatus : true;
-    return matchesSearch && matchesStatus;
+
+    let matchesCost = true;
+    if (costFilter.min !== '') matchesCost = matchesCost && (Number(item.cost) || 0) >= Number(costFilter.min);
+    if (costFilter.max !== '') matchesCost = matchesCost && (Number(item.cost) || 0) <= Number(costFilter.max);
+
+    let matchesDate = true;
+    const pDate = item.purchase_date || '';
+    if (dateFilter.from !== '') matchesDate = matchesDate && pDate >= dateFilter.from;
+    if (dateFilter.to !== '') matchesDate = matchesDate && pDate <= dateFilter.to;
+
+    return matchesSearch && matchesStatus && matchesCost && matchesDate;
   });
+
+  const sortedItems = useMemo(() => {
+    if (!sortConfig.key || !sortConfig.direction) return filteredItems;
+    const sorted = [...filteredItems];
+    sorted.sort((a, b) => {
+      if (sortConfig.key === 'cost') {
+        const ca = Number(a.cost) || 0;
+        const cb = Number(b.cost) || 0;
+        return sortConfig.direction === 'asc' ? ca - cb : cb - ca;
+      }
+      if (sortConfig.key === 'purchase_date') {
+        const da = a.purchase_date || '';
+        const db = b.purchase_date || '';
+        if (!da && !db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return sortConfig.direction === 'asc' ? da.localeCompare(db) : db.localeCompare(da);
+      }
+      return 0;
+    });
+    return sorted;
+  }, [filteredItems, sortConfig]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -199,7 +243,8 @@ function Inventory({ items, categories, onUpdate }) {
       category: form.category.value,
       cost: parseFloat(form.cost.value) || 0,
       location: form.location.value || "",
-      description: form.description.value || ""
+      description: form.description.value || "",
+      purchase_date: form.purchase_date.value || ""
     };
 
     try {
@@ -213,6 +258,16 @@ function Inventory({ items, categories, onUpdate }) {
         const data = await res.json();
         // Перетворюємо в рядок, щоб catch міг розпарсити
         throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
+      }
+
+      const fileInput = form.photo;
+      if (fileInput && fileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        await fetch(`${API_URL}/items/${data.inventory_number}/photo`, {
+          method: 'POST',
+          body: formData
+        });
       }
       
       form.reset();
@@ -243,7 +298,8 @@ function Inventory({ items, categories, onUpdate }) {
       category: form.category.value,
       cost: parseFloat(form.cost.value) || 0,
       location: form.location.value || "",
-      description: form.description.value || ""
+      description: form.description.value || "",
+      purchase_date: form.purchase_date.value || ""
     };
 
     try {
@@ -253,6 +309,17 @@ function Inventory({ items, categories, onUpdate }) {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Помилка при оновленні");
+
+      const fileInput = form.photo;
+      if (fileInput && fileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        await fetch(`${API_URL}/items/${editingItem.inventory_number}/photo`, {
+          method: 'POST',
+          body: formData
+        });
+      }
+
       setEditingItem(null);
       onUpdate();
     } catch (err) { alert(err.message); }
@@ -296,7 +363,7 @@ function Inventory({ items, categories, onUpdate }) {
           <Search size={18} className="search-icon" />
           <input 
             type="text" 
-            placeholder="Пошук за назвою або номером..." 
+            placeholder="Пошук за назвою, номером або категорією..." 
             className="input-control"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -318,7 +385,7 @@ function Inventory({ items, categories, onUpdate }) {
           {editingItem ? <Edit3 size={20} /> : <Plus size={20} />}
           {editingItem ? 'Редагувати майно' : 'Додати нове майно'}
         </h3>
-        <form onSubmit={editingItem ? handleEditSubmit : handleAdd} className="form-grid">
+        <form onSubmit={editingItem ? handleEditSubmit : handleAdd} className="form-grid inventory-form">
           <div className="form-group">
             <label>Інвентарний номер</label>
             <input name="inventory_number" className="input-control" required defaultValue={editingItem?.inventory_number} disabled={!!editingItem} />
@@ -351,6 +418,14 @@ function Inventory({ items, categories, onUpdate }) {
             <label>Опис</label>
             <input name="description" className="input-control" defaultValue={editingItem?.description} />
           </div>
+          <div className="form-group">
+            <label>Дата придбання</label>
+            <input name="purchase_date" type="date" className="input-control" defaultValue={editingItem?.purchase_date} />
+          </div>
+          <div className="form-group">
+            <label>Фото</label>
+            <input name="photo" type="file" accept="image/*" className="input-control" />
+          </div>
           
           <div style={{ gridColumn: '1 / -1', marginTop: '1rem', display: 'flex', gap: '1rem' }}>
             {error && <p style={{ color: '#ef4444', marginBottom: '1rem' }}>{error}</p>}
@@ -371,29 +446,56 @@ function Inventory({ items, categories, onUpdate }) {
               <th>Інв. номер</th>
               <th>Назва</th>
               <th>Категорія</th>
-              <th>Вартість</th>
+              <th>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Вартість 
+                  <button className="btn-icon" style={{ padding: '2px', color: (costFilter.min || costFilter.max) ? '#10b981' : '#94a3b8' }} onClick={() => setActiveFilterPopover('cost')} title="Фільтр по вартості">
+                    <Filter size={14} />
+                  </button>
+                </div>
+              </th>
+              <th>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Дата придбання 
+                  <button className="btn-icon" style={{ padding: '2px', color: (dateFilter.from || dateFilter.to) ? '#10b981' : '#94a3b8' }} onClick={() => setActiveFilterPopover('date')} title="Фільтр по даті">
+                    <Filter size={14} />
+                  </button>
+                </div>
+              </th>
               <th>Статус</th>
+              <th style={{ textAlign: 'center' }}>Фото</th>
               <th>Дії</th>
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map(item => (
+            {sortedItems.map(item => (
               <tr key={item.inventory_number}>
                 <td><code>{item.inventory_number}</code></td>
                 <td style={{ fontWeight: 600, color: '#fff' }}>{item.name}</td>
                 <td><span className="badge-category">{item.category}</span></td>
-                <td style={{ color: '#10b981', fontWeight: '600' }}>{item.cost.toLocaleString()} ₴</td>
+                <td style={{ color: '#10b981', fontWeight: '600' }}>{(Number(item.cost) || 0).toLocaleString()} ₴</td>
+                <td style={{ color: '#94a3b8' }}>{item.purchase_date ? new Date(item.purchase_date).toLocaleDateString('uk-UA') : '—'}</td>
                 <td>
                   <span className={`status-badge status-${item.status}`}>
                     {item.status === 'active' ? 'Активне' : item.status === 'moved' ? 'Переміщено' : 'Списано'}
                   </span>
                 </td>
-                <td className="actions-cell">
-                  <button onClick={() => setEditingItem(item)} title="Редагувати"><Edit3 size={16}/></button>
-                  <button onClick={() => handleMove(item.inventory_number)} title="Перемістити"><MapPin size={16}/></button>
-                  <button onClick={() => handleWriteOff(item.inventory_number)} title="Списати"><XCircle size={16}/></button>
-                  <button onClick={() => setSelectedItemHistory(item.inventory_number)} title="Історія"><History size={16}/></button>
-                  <button onClick={() => handleDelete(item.inventory_number)} title="Видалити" className="text-danger"><Trash2 size={16}/></button>
+                <td style={{ textAlign: 'center' }}>
+                  {item.photo_path ? <CheckCircle size={18} color="#10b981" /> : <XCircle size={18} color="#ef4444" />}
+                </td>
+                <td>
+                  <div className="actions-cell">
+                    {item.photo_path ? (
+                      <button onClick={() => setViewingPhoto(item.photo_path)} title="Переглянути фото" style={{ color: '#3b82f6' }}><ImageIcon size={16}/></button>
+                    ) : (
+                      <button disabled title="Немає фото" style={{ opacity: 0.3, cursor: 'not-allowed' }}><ImageIcon size={16}/></button>
+                    )}
+                    <button onClick={() => setEditingItem(item)} title="Редагувати"><Edit3 size={16}/></button>
+                    <button onClick={() => handleMove(item.inventory_number)} title="Перемістити"><MapPin size={16}/></button>
+                    <button onClick={() => handleWriteOff(item.inventory_number)} title="Списати"><XCircle size={16}/></button>
+                    <button onClick={() => setSelectedItemHistory(item.inventory_number)} title="Історія"><History size={16}/></button>
+                    <button onClick={() => handleDelete(item.inventory_number)} title="Видалити" className="text-danger"><Trash2 size={16}/></button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -404,6 +506,78 @@ function Inventory({ items, categories, onUpdate }) {
       {selectedItemHistory && (
         <HistoryModal inv={selectedItemHistory} onClose={() => setSelectedItemHistory(null)} />
       )}
+      {viewingPhoto && (
+        <PhotoModal photoUrl={viewingPhoto} onClose={() => setViewingPhoto(null)} />
+      )}
+      
+      {activeFilterPopover === 'cost' && (
+        <div className="modal-overlay" style={{ background: 'transparent', backdropFilter: 'none' }} onClick={() => setActiveFilterPopover(null)}>
+          <div className="modal-content fade-in" style={{ maxWidth: '380px', padding: '2.5rem', border: '1px solid var(--border-color)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#fff', fontSize: '1.25rem' }}>Фільтр за Вартістю</h3>
+            <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Вартість від:</div>
+            <input type="number" className="input-control" value={costFilter.min} onChange={e => setCostFilter({...costFilter, min: e.target.value})} style={{ marginBottom: '1.25rem' }} />
+            <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Вартість до:</div>
+            <input type="number" className="input-control" value={costFilter.max} onChange={e => setCostFilter({...costFilter, max: e.target.value})} style={{ marginBottom: '1.5rem' }} />
+            <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Сортування:</div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className={`btn ${sortConfig.key === 'cost' && sortConfig.direction === 'asc' ? 'btn-primary' : ''}`} style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setSortConfig({ key: 'cost', direction: 'asc' })}>
+                  <ArrowUp size={14} /> Зростання
+                </button>
+                <button className={`btn ${sortConfig.key === 'cost' && sortConfig.direction === 'desc' ? 'btn-primary' : ''}`} style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setSortConfig({ key: 'cost', direction: 'desc' })}>
+                  <ArrowDown size={14} /> Спадання
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button className="btn btn-primary" style={{ flex: 1, padding: '0.6rem' }} onClick={() => setActiveFilterPopover(null)}>ОК</button>
+              <button className="btn" style={{ padding: '0.6rem' }} onClick={() => { setCostFilter({min:'', max:''}); setSortConfig({key: null, direction: null}); setActiveFilterPopover(null); }}>Скинути</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {activeFilterPopover === 'date' && (
+        <div className="modal-overlay" style={{ background: 'transparent', backdropFilter: 'none' }} onClick={() => setActiveFilterPopover(null)}>
+          <div className="modal-content fade-in" style={{ maxWidth: '380px', padding: '2.5rem', border: '1px solid var(--border-color)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#fff', fontSize: '1.25rem' }}>Фільтр за Датою</h3>
+            <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Дата від:</div>
+            <input type="date" className="input-control" value={dateFilter.from} onChange={e => setDateFilter({...dateFilter, from: e.target.value})} style={{ marginBottom: '1.25rem' }} />
+            <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Дата до:</div>
+            <input type="date" className="input-control" value={dateFilter.to} onChange={e => setDateFilter({...dateFilter, to: e.target.value})} style={{ marginBottom: '1.5rem' }} />
+            <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '0.9rem', color: '#94a3b8', paddingLeft: '0.2rem' }}>Сортування:</div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className={`btn ${sortConfig.key === 'purchase_date' && sortConfig.direction === 'asc' ? 'btn-primary' : ''}`} style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setSortConfig({ key: 'purchase_date', direction: 'asc' })}>
+                  <ArrowUp size={14} /> Старіші
+                </button>
+                <button className={`btn ${sortConfig.key === 'purchase_date' && sortConfig.direction === 'desc' ? 'btn-primary' : ''}`} style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setSortConfig({ key: 'purchase_date', direction: 'desc' })}>
+                  <ArrowDown size={14} /> Новіші
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button className="btn btn-primary" style={{ flex: 1, padding: '0.6rem' }} onClick={() => setActiveFilterPopover(null)}>ОК</button>
+              <button className="btn" style={{ padding: '0.6rem' }} onClick={() => { setDateFilter({from:'', to:''}); setSortConfig({key: null, direction: null}); setActiveFilterPopover(null); }}>Скинути</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PhotoModal({ photoUrl, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content fade-in" style={{ background: 'transparent', border: 'none', boxShadow: 'none', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '90vh' }}>
+          <img src={photoUrl} alt="Фото майна" style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: '12px', objectFit: 'contain' }} />
+          <button onClick={onClose} className="btn-icon" style={{ position: 'absolute', top: '-40px', right: '0', background: 'rgba(0,0,0,0.5)', color: 'white' }}>
+            <XCircle size={24}/>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -442,19 +616,34 @@ function HistoryModal({ inv, onClose }) {
 
 function Categories({ hierarchy, onUpdate }) {
   const [isAdding, setIsAdding] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
   
-  const handleAdd = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
     if (!data.parent_name) delete data.parent_name;
     
-    await fetch(`${API_URL}/categories`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    setIsAdding(false);
+    if (editingCategory) {
+      await fetch(`${API_URL}/categories/${editingCategory.name}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      setEditingCategory(null);
+    } else {
+      await fetch(`${API_URL}/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      setIsAdding(false);
+    }
     onUpdate();
+  };
+
+  const handleEdit = (node) => {
+    setEditingCategory(node);
+    setIsAdding(false);
   };
 
   const handleDelete = async (name) => {
@@ -468,7 +657,7 @@ function Categories({ hierarchy, onUpdate }) {
     <div>
       <div className="page-header">
         <h1 className="page-title">Категорії Майна</h1>
-        <button className="btn btn-primary" onClick={() => setIsAdding(true)}>
+        <button className="btn btn-primary" onClick={() => { setIsAdding(true); setEditingCategory(null); }}>
           <Plus size={18} /> Нова категорія
         </button>
       </div>
@@ -477,28 +666,28 @@ function Categories({ hierarchy, onUpdate }) {
         <div className="category-tree card">
           <h3 style={{ marginBottom: '1.5rem' }}>Ієрархія категорій</h3>
           {hierarchy.length === 0 && <p style={{ color: '#94a3b8' }}>Категорії не знайдено</p>}
-          {hierarchy.map(node => <CategoryNode key={node.name} node={node} onDelete={handleDelete} />)}
+          {hierarchy.map(node => <CategoryNode key={node.name} node={node} onDelete={handleDelete} onEdit={handleEdit} />)}
         </div>
 
-        {isAdding && (
+        {(isAdding || editingCategory) && (
           <div className="form-card" style={{ flex: 1 }}>
-            <h3>Додати категорію</h3>
-            <form onSubmit={handleAdd} className="form-grid" style={{ marginTop: '1rem' }}>
+            <h3>{editingCategory ? 'Редагувати категорію' : 'Додати категорію'}</h3>
+            <form onSubmit={handleSubmit} className="form-grid" style={{ marginTop: '1rem' }}>
               <div className="form-group">
-                <label>ID (код)</label>
-                <input name="name" className="input-control" required placeholder="напр. electronics" />
+                <label>ID (код) {editingCategory && '(не змінюється)'}</label>
+                <input name="name" className="input-control" required defaultValue={editingCategory?.name || ''} readOnly={!!editingCategory} placeholder="напр. electronics" />
               </div>
               <div className="form-group">
                 <label>Назва</label>
-                <input name="label" className="input-control" required placeholder="напр. Електроніка" />
+                <input name="label" className="input-control" required defaultValue={editingCategory?.label || ''} placeholder="напр. Електроніка" />
               </div>
               <div className="form-group">
                 <label>Батьківська категорія (ID)</label>
-                <input name="parent_name" className="input-control" placeholder="напр. it (залишити порожнім для корня)" />
+                <input name="parent_name" className="input-control" defaultValue={editingCategory?.parent_name || ''} placeholder="напр. it (залишити порожнім для корня)" />
               </div>
               <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                 <button type="submit" className="btn btn-primary">Зберегти</button>
-                <button type="button" className="btn" onClick={() => setIsAdding(false)}>Скасувати</button>
+                <button type="button" className="btn" onClick={() => { setIsAdding(false); setEditingCategory(null); }}>Скасувати</button>
               </div>
             </form>
           </div>
@@ -508,7 +697,7 @@ function Categories({ hierarchy, onUpdate }) {
   );
 }
 
-function CategoryNode({ node, onDelete }) {
+function CategoryNode({ node, onDelete, onEdit }) {
   const [expanded, setExpanded] = useState(true);
   const hasChildren = node.children && node.children.length > 0;
 
@@ -520,11 +709,14 @@ function CategoryNode({ node, onDelete }) {
         </button>
         <span className="node-label">{node.label}</span>
         <span className="node-name">({node.name})</span>
-        <button className="delete-node" onClick={() => onDelete(node.name)} title="Видалити"><Trash2 size={14}/></button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+          <button className="btn-icon" onClick={() => onEdit(node)} title="Редагувати" style={{ color: '#3b82f6' }}><Edit3 size={14}/></button>
+          <button className="delete-node" onClick={() => onDelete(node.name)} title="Видалити"><Trash2 size={14}/></button>
+        </div>
       </div>
       {expanded && hasChildren && (
         <div className="node-children">
-          {node.children.map(child => <CategoryNode key={child.name} node={child} onDelete={onDelete} />)}
+          {node.children.map(child => <CategoryNode key={child.name} node={child} onDelete={onDelete} onEdit={onEdit} />)}
         </div>
       )}
     </div>
@@ -572,7 +764,7 @@ function Reports() {
               <option value="summary">Зведений звіт</option>
               <option value="category">По категоріях</option>
               <option value="written_off">Списане майно</option>
-              <option value="value_period">Вартість за період (Req 7.2)</option>
+              <option value="value_period">Вартість за період</option>
               <option value="csv">Експорт CSV</option>
             </select>
           </div>

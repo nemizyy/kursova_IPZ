@@ -55,6 +55,7 @@ class Item:
     cost: float                     # Вартість (грн)
     status: str = ItemStatus.ACTIVE # Поточний статус
     added_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    purchase_date: str = ""        # Дата придбання (окремо від дати додавання до системи)
     location: str = ""              # Місце знаходження (кімната/відділ)
     description: str = ""          # Додатковий опис
     photo_path: str = ""           # Шлях до прикріпленої фотографії
@@ -69,6 +70,7 @@ class Item:
             "cost": self.cost,
             "status": self.status,
             "added_at": self.added_at,
+            "purchase_date": self.purchase_date,
             "location": self.location,
             "description": self.description,
             "photo_path": self.photo_path,
@@ -84,6 +86,7 @@ class Item:
             cost=float(data["cost"]),
             status=data.get("status", ItemStatus.ACTIVE),
             added_at=data.get("added_at", datetime.now().isoformat()),
+            purchase_date=data.get("purchase_date", ""),
             location=data.get("location", ""),
             description=data.get("description", ""),
             photo_path=data.get("photo_path", ""),

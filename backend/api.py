@@ -1,10 +1,12 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import uuid
+import shutil
 
 try:
     from .service import InventoryService
@@ -25,6 +27,10 @@ app.add_middleware(
 
 service = InventoryService()
 
+# ─── Upload directory ──────────────────────────────────────
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "images")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 # ─── Pydantic schemas ──────────────────────────────────────
 
 class ItemCreate(BaseModel):
@@ -34,6 +40,7 @@ class ItemCreate(BaseModel):
     cost: float = Field(..., ge=0)
     location: Optional[str] = ""
     description: Optional[str] = ""
+    purchase_date: Optional[str] = ""
 
 class ItemUpdate(BaseModel):
     name: Optional[str] = None
@@ -42,6 +49,7 @@ class ItemUpdate(BaseModel):
     location: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
+    purchase_date: Optional[str] = None
 
 class FilterParams(BaseModel):
     min_cost: Optional[float] = None
@@ -73,6 +81,7 @@ def add_item(payload: ItemCreate):
             cost=payload.cost,
             location=payload.location or "",
             description=payload.description or "",
+            purchase_date=payload.purchase_date or "",
         )
         return {"status": "added", "item": item.to_dict()}
     except ValueError as e:
@@ -81,6 +90,32 @@ def add_item(payload: ItemCreate):
 @app.get("/api/items", response_model=List[dict])
 def list_items():
     return [i.to_dict() for i in service.get_all_items()]
+
+# IMPORTANT: search must come BEFORE /{inv} to avoid route conflicts
+@app.get("/api/items/search", response_model=List[dict])
+def search_items(q: str = Query(...)):
+    return [i.to_dict() for i in service.search_items(q)]
+
+@app.get("/api/items/filter", response_model=List[dict])
+def filter_items(
+    min_cost: Optional[float] = None,
+    max_cost: Optional[float] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    location: Optional[str] = None,
+):
+    """Фільтрація майна за будь-якою комбінацією параметрів (Req 3.2)."""
+    return [i.to_dict() for i in service.filter_items(
+        min_cost=min_cost,
+        max_cost=max_cost,
+        date_from=date_from,
+        date_to=date_to,
+        status=status,
+        category=category,
+        location=location,
+    )]
 
 @app.get("/api/items/{inv}", response_model=dict)
 def get_item(inv: str):
@@ -122,13 +157,57 @@ def write_off_item(inv: str, reason: str = ""):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/api/items/search", response_model=List[dict])
-def search_items(q: str = Query(...)):
-    return [i.to_dict() for i in service.search_items(q)]
+# ─── Photo upload (Req 1.3) ─────────────────────────────────
+
+@app.post("/api/items/{inv}/photo")
+async def upload_photo(inv: str, file: UploadFile = File(...)):
+    """Завантажити фото для об'єкта майна."""
+    item = service.get_item(inv)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    # Validate file type
+    allowed_types = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Непідтримуваний тип файлу: {file.content_type}. Дозволені: JPEG, PNG, WebP, GIF."
+        )
+
+    # Generate unique filename
+    ext = os.path.splitext(file.filename)[1] or ".jpg"
+    filename = f"{inv}_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+
+    # Save file
+    with open(filepath, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    # Update item's photo_path
+    photo_url = f"/api/photos/{filename}"
+    service.edit_item(inv, photo_path=photo_url)
+
+    return {"status": "uploaded", "photo_path": photo_url}
+
+@app.get("/api/photos/{filename}")
+async def get_photo(filename: str):
+    """Повернути фото майна."""
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.isfile(filepath):
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return FileResponse(filepath)
+
+# ─── History ─────────────────────────────────────────────────
+
+@app.get("/api/history", response_model=List[dict])
+def all_history():
+    return [r.to_dict() for r in service.get_history()]
 
 @app.get("/api/history/{inv}", response_model=List[dict])
 def item_history(inv: str):
     return [r.to_dict() for r in service.get_history(inv)]
+
+# ─── Reports ─────────────────────────────────────────────────
 
 @app.get("/api/report/{type}")
 def generate_report(type: str, date_from: Optional[str] = None, date_to: Optional[str] = None):
@@ -140,6 +219,8 @@ def generate_report(type: str, date_from: Optional[str] = None, date_to: Optiona
         return {"type": type, "report": report}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# ─── Categories ──────────────────────────────────────────────
 
 @app.get("/api/categories", response_model=List[dict])
 def list_categories():
@@ -173,6 +254,8 @@ def delete_category(name: str):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# ─── Stats ───────────────────────────────────────────────────
+
 @app.get("/api/stats")
 def get_stats():
     items = service.get_all_items()
@@ -187,6 +270,8 @@ def get_stats():
         "total_cost": total_cost,
         "categories": len(categories)
     }
+
+# ─── Undo / Redo ────────────────────────────────────────────
 
 @app.post("/api/undo")
 def undo():
