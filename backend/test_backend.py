@@ -12,11 +12,18 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
 
 # Щоб Python знайшов модулі бекенду
-sys.path.insert(0, os.path.dirname(__file__))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
-from database import init_db, drop_all_tables
-from service import InventoryService
-from observer import EventType
+try:
+    from backend.database import init_db
+    from backend.service import InventoryService
+    from backend.observer import EventType
+except ImportError:
+    from database import init_db
+    from service import InventoryService
+    from observer import EventType
 
 # ─── Тимчасова БД для тестів ─────────────────────────────────
 TEST_DB = os.path.join(os.path.dirname(__file__), "_test_inventory.db")
