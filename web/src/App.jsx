@@ -385,7 +385,7 @@ function Inventory({ items, categories, onUpdate }) {
           {editingItem ? <Edit3 size={20} /> : <Plus size={20} />}
           {editingItem ? 'Редагувати майно' : 'Додати нове майно'}
         </h3>
-        <form onSubmit={editingItem ? handleEditSubmit : handleAdd} className="form-grid inventory-form">
+        <form key={editingItem ? `edit-${editingItem.inventory_number}` : 'new'} onSubmit={editingItem ? handleEditSubmit : handleAdd} className="form-grid inventory-form">
           <div className="form-group">
             <label>Інвентарний номер</label>
             <input name="inventory_number" className="input-control" required defaultValue={editingItem?.inventory_number} disabled={!!editingItem} />
@@ -396,13 +396,17 @@ function Inventory({ items, categories, onUpdate }) {
           </div>
           <div className="form-group">
             <label>Категорія</label>
-            <select name="category" className="input-control" defaultValue={editingItem?.category}>
-              <option value="">-- {categories.length === 0 ? 'Категорії завантажуються...' : 'Виберіть категорію'} --</option>
-              {categories.map(c => (
-                <option key={c.name || c} value={c.name || c}>
-                  {c.label || c}
-                </option>
-              ))}
+            <select name="category" className="input-control" required defaultValue={editingItem?.category || ""}>
+              <option value="" disabled={!!editingItem}>-- {categories.length === 0 ? 'Категорії завантажуються...' : 'Виберіть категорію'} --</option>
+              {categories.map(c => {
+                const val = c.name || c;
+                const lab = c.label || c;
+                return (
+                  <option key={val} value={val}>
+                    {lab}
+                  </option>
+                );
+              })}
             </select>
             {categories.length === 0 && <button type="button" onClick={onUpdate} style={{ fontSize: '0.7rem', color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer' }}>Оновити список</button>}
           </div>
